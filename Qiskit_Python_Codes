@@ -1,0 +1,103 @@
+import numpy as np
+import qiskit.quantum_info as qi
+import cmath
+import math
+from collections import Counter
+from random import gauss
+from qiskit import QuantumCircuit, execute, transpile, Aer, IBMQ
+from qiskit.visualization import *
+from ibm_quantum_widgets import *
+from qiskit.tools.jupyter import *
+from qiskit.providers.aer import QasmSimulator
+provider = IBMQ.load_account()
+
+#-------------------------------------------------------------
+def Premium_Gate_function(numberofqubit,premium):
+    matrixdimension=2**numberofqubit
+    premiumGate=np.zeros((matrixdimension, matrixdimension))
+    for i in range(0,matrixdimension):
+            premiumGate[i,(matrixdimension-premium+i)%(matrixdimension)]=1
+    return premiumGate
+#-------------------------------------------------------------
+    
+def Claim_Gate_function(numberofqubit,claimamount):
+    matrixdimension=2**numberofqubit
+    ClaimGate=np.zeros((matrixdimension, matrixdimension))
+    for i in range(0,matrixdimension):
+            ClaimGate[i,(claimamount+i)%(matrixdimension)]=1
+    return ClaimGate  
+#-------------------------------------------------------------
+    
+def Number_of_qubits(initialReserve,premium,time):
+    maxcapital=initialReserve+premium*time
+    numberofqubit=0
+    for n in range(maxcapital):
+        if maxcapital>=2**n :
+              numberofqubit=n
+        else :
+                     break
+        
+    return  numberofqubit
+    
+#-------------------------------------------------------------
+    
+def Binary_Form_Initial_Reserve(initialReserve,premium,time):
+    binaryFormOfInitialReserve=format(initialReserve, 'b')
+    if len(binaryFormOfInitialReserve)!=Number_of_qubits(initialReserve,premium,time):
+            for i in range(0, (Number_of_qubits(initialReserve,premium,time)-len(binaryFormOfInitialReserve))):
+                binaryFormOfInitialReserve="0"+binaryFormOfInitialReserve 
+    return  binaryFormOfInitialReserve 
+    
+#-------------------------------------------------------------    
+#INPUTS
+initialReserve=200
+premium=20
+my_mean = 15
+my_variance = 4
+time=8
+#------------------------
+iteration = 300  #total simulation number = iteration x shot
+qubitNumber=Number_of_qubits(initialReserve,premium,time)
+Reserve=Binary_Form_Initial_Reserve(initialReserve,premium,time)
+PremiumGate=qi.Operator(Premium_Gate_function(qubitNumber,premium))
+allresult={}
+for z in range(0,iteration):
+    random_claim_means = [round(gauss(my_mean, math.sqrt(my_variance))) for i in range(time)]
+    qc = QuantumCircuit(qubitNumber,qubitNumber)
+    for i in range(0,qubitNumber):
+        if Reserve[len(Reserve)-1-i]=="1":
+            qc.x(i)
+    for j in range(0,time):
+        ClaimGate=Claim_Gate_function(qubitNumber,random_claim_means[j])
+        qc.unitary(PremiumGate ,list(range(qubitNumber)),label="PG")
+        qc.unitary(ClaimGate  ,list(range(qubitNumber)),label="CG"+str(j))
+        qc.h(0)
+        qc.h(1)
+    qc.measure(list(range(qubitNumber)),list(range(qubitNumber)))
+
+
+    backend = Aer.get_backend('qasm_simulator')
+    job = execute(qc, backend = backend, shots = 5 , memory=True)  
+    result = job.result()
+    counts = result.get_counts()
+    allresult= Counter(allresult)+Counter(counts) 
+plot_histogram(allresult, figsize=(17,4))
+
+#-------------------------------------------------------------
+sortedDict = dict(sorted(sorted(allresult.items(), key=lambda x:x[1])))
+data_values=list(sortedDict.values())
+data_items=list(sortedDict.keys())
+NumberOfStates= np.array(data_values)
+Capitals_InBinaryForm=np.array(data_items)
+probs=NumberOfStates/np.sum(NumberOfStates)
+
+capitals=[]
+for i in range(len(Capitals_InBinaryForm)):
+    capitals.append( int(Capitals_InBinaryForm[i],2))
+capitals=np.array(capitals)  
+
+expectedCapital=0
+for i in range(len(capitals)):
+    expectedCapital=expectedCapital+capitals[i]*probs[i]
+print(expectedCapital)
+#-------------------------------------------------------------
