@@ -37,7 +37,7 @@ def Number_of_qubits(initialReserve,premium,time):
         else :
                      break
         
-    return  numberofqubit
+    return  numberofqubit   #  needs to modify for negative quantum state and random noise approach. 
     
 #-------------------------------------------------------------
     
